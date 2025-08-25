@@ -1,0 +1,59 @@
+name: Deploy to Azure Functions
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AZURE_FUNCTIONAPP_NAME: finansehub-functions
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: './backend'
+  NODE_VERSION: '22.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: './backend/package-lock.json'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+
+    - name: Build TypeScript
+      run: |
+        cd backend
+        npm run build
+
+    - name: Run tests
+      run: |
+        cd backend
+        npm test --if-present
+
+    - name: Deploy to Azure Functions
+      uses: Azure/functions-action@v1
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed!"
+        fi
