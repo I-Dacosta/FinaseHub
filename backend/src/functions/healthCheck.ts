@@ -1,21 +1,22 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 
 export async function healthCheck(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
-    context.log('Health check function triggered');
-    
-    return {
+    context.log(`Health check processed request for url "${request.url}"`);
+
+    return { 
         status: 200,
         jsonBody: {
-            status: 'healthy',
+            message: 'Health check working',
             timestamp: new Date().toISOString(),
-            runtime: 'Node.js 22',
-            message: 'FinanseHub Function App is running'
+            method: request.method,
+            url: request.url
         }
     };
 }
 
 app.http('healthCheck', {
-    methods: ['GET'],
+    methods: ['GET', 'POST'],
     authLevel: 'anonymous',
+    route: 'health',
     handler: healthCheck
 });
