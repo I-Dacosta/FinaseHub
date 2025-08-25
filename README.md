@@ -192,3 +192,4 @@ Dette prosjektet er lisensiert under MIT License - se [LICENSE](LICENSE) filen f
 ---
 
 *Bygget med ❤️ for finansdata-entusiaster*
+# Force deployment
