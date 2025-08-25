@@ -1,0 +1,65 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "serverName": {
+            "type": "string",
+            "defaultValue": "finansehub-db",
+            "metadata": {
+                "description": "PostgreSQL server name"
+            }
+        },
+        "resourceGroupName": {
+            "type": "string",
+            "defaultValue": "rg-finansehub",
+            "metadata": {
+                "description": "Resource group name"
+            }
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+            "apiVersion": "2023-03-01-preview",
+            "name": "[parameters('serverName')]",
+            "location": "norwayeast",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "version": "15",
+                "administratorLogin": "finansehub_admin",
+                "storage": {
+                    "storageSizeGB": 32
+                },
+                "backup": {
+                    "backupRetentionDays": 7,
+                    "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                    "mode": "Disabled"
+                },
+                "replicationRole": "Primary",
+                "replicaCapacity": 5,
+                "network": {
+                    "publicNetworkAccess": "Enabled"
+                },
+                "authConfig": {
+                    "activeDirectoryAuth": "Disabled",
+                    "passwordAuth": "Enabled"
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "serverIdentity": {
+            "type": "object",
+            "value": "[reference(parameters('serverName'), '2023-03-01-preview', 'Full').identity]"
+        },
+        "serverFQDN": {
+            "type": "string",
+            "value": "[reference(parameters('serverName')).fullyQualifiedDomainName]"
+        }
+    }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "finansehub-backend",
+  "version": "1.0.0",
+  "description": "Azure Functions backend for FinanseHub - fetches currency rates and interest data from Norges Bank",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "prestart": "npm run build",
+    "start": "func start",
+    "dev": "npm run build && func start",
+    "test": "jest",
+    "lint": "eslint . --ext .ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.1",
+    "@azure/identity": "^4.4.1",
+    "@azure/keyvault-secrets": "^4.8.1",
+    "@azure/msal-node": "^2.15.0",
+    "@azure/storage-queue": "^12.24.0",
+    "@prisma/client": "^6.1.0",
+    "axios": "^1.7.9",
+    "csv-parser": "^3.0.0",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "dotenv": "^17.2.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.17.0",
+    "jest": "^29.7.0",
+    "prisma": "^6.1.0",
+    "ts-jest": "^29.2.6",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
