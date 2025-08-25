@@ -10,6 +10,7 @@ interface CurrencyDataQuery {
 }
 
 export async function currencyDataHandler(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  context.log('Currency data handler called');
   try {
     const url = new URL(request.url);
     
