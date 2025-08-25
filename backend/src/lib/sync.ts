@@ -89,7 +89,7 @@ export class SyncService {
             
             // Finn siste dato i databasen for denne valutaen
             const lastRate = await prisma.rate.findFirst({
-              where: { base, quote },
+              where: { base, quote, src: 'NB' }, // Specify source to avoid conflicts
               orderBy: { date: 'desc' }
             });
 
@@ -98,32 +98,41 @@ export class SyncService {
               // Start fra dagen etter siste registrerte dato
               const nextDay = addDays(lastRate.date, 1);
               startDate = format(nextDay, 'yyyy-MM-dd');
+              console.log(`Last ${base}/${quote} rate found: ${format(lastRate.date, 'yyyy-MM-dd')}, starting from: ${startDate}`);
+            } else {
+              console.log(`No existing ${base}/${quote} rates found, starting from: ${startDate}`);
             }
 
             const today = format(new Date(), 'yyyy-MM-dd');
             
             // Skip hvis vi allerede er oppdatert
             if (startDate > today) {
-              console.log(`${base}/${quote} is already up to date`);
+              console.log(`${base}/${quote} is already up to date (start: ${startDate}, today: ${today})`);
               return;
             }
+
+            console.log(`Fetching ${base}/${quote} rates from ${startDate} to ${today}`);
 
             // Hent nye data fra Norges Bank
             const rates = await this.nbClient.getCurrencyRates([base], quote, startDate, today);
             
             if (rates.length === 0) {
               console.log(`No new data for ${base}/${quote} from ${startDate} to ${today}`);
+              // This might be normal for weekends/holidays, so don't treat as error
               return;
             }
 
-            // Konverter til database-format
+            // Konverter til database-format med explicit date conversion
             const rateData = rates.map(rate => ({
-              date: rate.date,
+              date: rate.date instanceof Date ? rate.date : new Date(rate.date),
               base: rate.base,
               quote: rate.quote,
               value: rate.value,
               src: 'NB'
             }));
+
+            // Sort by date to ensure proper ordering
+            rateData.sort((a, b) => a.date.getTime() - b.date.getTime());
 
             // Bulk insert med skipDuplicates
             const result = await prisma.rate.createMany({
@@ -132,7 +141,7 @@ export class SyncService {
             });
 
             totalRecordsProcessed += result.count;
-            console.log(`✅ Inserted ${result.count} new rates for ${base}/${quote}`);
+            console.log(`✅ Inserted ${result.count} new rates for ${base}/${quote} (${rateData.length} total fetched)`);
             successfulCurrencies.push(`${base}/${quote}`);
           });
         } catch (error) {
@@ -142,35 +151,50 @@ export class SyncService {
         }
       }
 
-      // Sync Chilean Peso using Abstract API
+      // Sync Chilean Peso using Abstract API - only if it's the right time or forced
       if (this.abstractClient) {
         try {
           await this.retryOperation(async () => {
-            console.log('Syncing CLP/NOK via Abstract API');
+            console.log('Checking CLP/NOK sync via Abstract API');
             
             const lastClpRate = await prisma.rate.findFirst({
-              where: { base: 'CLP', quote },
+              where: { base: 'CLP', quote, src: 'ABSTRACT' },
               orderBy: { date: 'desc' }
             });
 
             const today = format(new Date(), 'yyyy-MM-dd');
+            const shouldForceUpdate = !lastClpRate; // Force if no data exists
+            const shouldScheduledUpdate = AbstractAPIClient.shouldUpdateCLP();
             
-            // Check if we need to update CLP rate (only update if more than 1 day old)
-            const needsUpdate = !lastClpRate || 
+            // Check if we need to update CLP rate
+            const needsUpdate = shouldForceUpdate || 
+              shouldScheduledUpdate ||
+              !lastClpRate || 
               format(lastClpRate.date, 'yyyy-MM-dd') < today;
 
             if (needsUpdate) {
+              console.log(`CLP update needed - Force: ${shouldForceUpdate}, Scheduled: ${shouldScheduledUpdate}, Last: ${lastClpRate ? format(lastClpRate.date, 'yyyy-MM-dd') : 'none'}`);
+              
               const clpRate = await this.abstractClient!.getChileanPesoRate(today);
               
               if (clpRate) {
+                // Convert string date to Date object
+                const rateData = {
+                  date: new Date(clpRate.date),
+                  base: clpRate.base,
+                  quote: clpRate.quote,
+                  value: clpRate.value,
+                  src: clpRate.src
+                };
+
                 const result = await prisma.rate.createMany({
-                  data: [clpRate],
+                  data: [rateData],
                   skipDuplicates: true
                 });
 
                 if (result.count > 0) {
                   totalRecordsProcessed += result.count;
-                  console.log(`✅ Inserted ${result.count} new CLP/NOK rate via Abstract API`);
+                  console.log(`✅ Inserted ${result.count} new CLP/NOK rate via Abstract API (${clpRate.value.toFixed(6)})`);
                   successfulCurrencies.push('CLP/NOK (Abstract API)');
                 } else {
                   console.log('CLP/NOK rate already exists for today');
@@ -180,7 +204,7 @@ export class SyncService {
                 skippedCurrencies.push('CLP/NOK (Abstract API - no data)');
               }
             } else {
-              console.log('CLP/NOK is already up to date');
+              console.log(`CLP/NOK update skipped - not scheduled time and data exists for today`);
             }
           });
         } catch (error) {
@@ -426,6 +450,60 @@ export class SyncService {
     } catch (error) {
       console.error('❌ Critical error during full sync:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Force sync Chilean Peso regardless of timing (for testing/manual updates)
+   */
+  async forceSyncChileanPeso(): Promise<{ success: boolean; message: string; rate?: any }> {
+    if (!this.abstractClient) {
+      return {
+        success: false,
+        message: 'Abstract API client not available'
+      };
+    }
+
+    try {
+      const prisma = getPrismaClient();
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      console.log('Force syncing CLP/NOK via Abstract API');
+      
+      const clpRate = await this.abstractClient.getChileanPesoRate(today);
+      
+      if (clpRate) {
+        // Convert string date to Date object
+        const rateData = {
+          date: new Date(clpRate.date),
+          base: clpRate.base,
+          quote: clpRate.quote,
+          value: clpRate.value,
+          src: clpRate.src
+        };
+
+        const result = await prisma.rate.createMany({
+          data: [rateData],
+          skipDuplicates: true
+        });
+
+        return {
+          success: true,
+          message: `Successfully ${result.count > 0 ? 'inserted' : 'verified existing'} CLP/NOK rate`,
+          rate: clpRate
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Failed to fetch CLP rate from Abstract API'
+        };
+      }
+    } catch (error) {
+      console.error('Error in force sync CLP:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

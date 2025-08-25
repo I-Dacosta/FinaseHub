@@ -27,7 +27,7 @@ az functionapp config appsettings set -g <RG> -n <FUNCTION_NAME> --settings \
   "WEBSITE_TIME_ZONE=W. Europe Standard Time" \
   "DATABASE_URL=@Microsoft.KeyVault(VaultName=<KV>;SecretName=DATABASE-URL)" \
   "CRON_KEY=@Microsoft.KeyVault(VaultName=<KV>;SecretName=CRON-KEY)" \
-  "NB_BASES=USD,EUR,GBP,SEK,DKK,JPY,ISK,AUD,NZD,IDR,CLP" \
+  "NB_BASES=USD,EUR,GBP,SEK,DKK,CAD,ISK,AUD,NZD,IDR,CLP" \
   "NB_QUOTE=NOK" \
   "NB_DEFAULT_START=2023-01-01" \
   "SYNC_MAX_ATTEMPTS=4" "SYNC_BASE_DELAY_MS=2000" "SYNC_MAX_DELAY_MS=30000" \
